@@ -81,12 +81,26 @@ class Updater(object):
                     loading_definition: LoadingDefinition):
         db_controller.recreate_table(table_suffix)
 
-        df_it = self._load(app_id, loading_definition, since, until,
-                           LogsApiClient.DATE_DIMENSION_CREATE, parts_count)
+        # Используем только нужные поля для API
+        custom_fields = [
+            "appmetrica_device_id",
+            "event_name",
+            "event_datetime"
+        ]
+        df_it = self._loader.load(app_id, loading_definition.source_name,
+                                  custom_fields,  # только эти поля!
+                                  since, until, LogsApiClient.DATE_DIMENSION_CREATE, parts_count)
         for df in df_it:
-            logger.debug("Start processing data chunk")
-            upload_df = self._process_data(app_id, df,
-                                           processing_definition)
+            # Маппинг имён колонок под ClickHouse
+            rename_dict = {
+                "appmetrica_device_id": "DeviceID",
+                "event_name": "EventName",
+                "event_datetime": "EventDateTime"
+            }
+            df = df.rename(columns=rename_dict)
+            df = df[["DeviceID", "EventName", "EventDateTime"]]  # только нужные для БД
+            logger.debug("Start processing data chunk (custom 3 fields)")
+            upload_df = self._process_data(app_id, df, processing_definition)
             db_controller.insert_data(upload_df, table_suffix)
 
     def update(self, app_id: str, date: Optional[datetime.date],
