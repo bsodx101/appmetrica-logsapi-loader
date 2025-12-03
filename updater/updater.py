@@ -99,6 +99,13 @@ class Updater(object):
             }
             df = df.rename(columns=rename_dict)
             df = df[["DeviceID", "EventName", "EventDateTime"]]  # только нужные для БД
+            logger.info(f"API-запрос для app_id={app_id}")
+            logger.info(f"AFTER API: shape={df.shape}")
+            logger.info(f"AFTER API: columns={df.columns.tolist()}")
+            if not df.empty:
+                logger.info(f"AFTER API: head=\n{df.head(3)}")
+            else:
+                logger.warning("AFTER API: DataFrame после загрузки из API пустой!")
             logger.debug("Start processing data chunk (custom 3 fields)")
             upload_df = self._process_data(app_id, df, processing_definition)
             db_controller.insert_data(upload_df, table_suffix)

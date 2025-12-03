@@ -1,4 +1,13 @@
-#!/usr/bin/env python3
+
+
+# После loader.load, перед фильтрацией:
+logger.info(f"API-запрос для app_id={app_id}")
+logger.info(f"AFTER API: shape={df.shape}")
+logger.info(f"AFTER API: columns={df.columns.tolist()}")
+logger.info(f"AFTER API: head=\n{df.head(3)}")
+
+    app_id_state.date_updates[p_hour] = now or datetime.now()
+    self._save_state()
 """
   settings.py
 

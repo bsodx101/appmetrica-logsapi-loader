@@ -58,6 +58,10 @@ class UpdatesController(object):
         db_controller.archive_table(table_suffix)
 
     def _update(self, update_request: UpdateRequest):
+        logger.info(
+            f"UPDATE: type={update_request.update_type}, source={update_request.source}, "
+            f"app_id={update_request.app_id}, hour={getattr(update_request, 'hour', None)}"
+        )
         source = update_request.source
         app_id = update_request.app_id
         hour = update_request.hour
@@ -74,16 +78,25 @@ class UpdatesController(object):
         db_controller = \
             self._db_controllers_collection.db_controller(source)
 
-        if update_type == UpdateRequest.LOAD_ONE_HOUR:
-            self._load_into_table(app_id, hour, table_suffix,
-                                  processing_definition, loading_definition,
-                                  db_controller)
-        elif update_type == UpdateRequest.ARCHIVE:
-            self._archive(source, app_id, hour, table_suffix, db_controller)
-        elif update_type == UpdateRequest.LOAD_HOUR_IGNORED:
-            self._load_into_table(app_id, None, table_suffix,
-                                  processing_definition, loading_definition,
-                                  db_controller)
+        try:
+            if update_type == UpdateRequest.LOAD_ONE_HOUR:
+                self._load_into_table(app_id, hour, table_suffix,
+                                      processing_definition, loading_definition,
+                                      db_controller)
+            elif update_type == UpdateRequest.ARCHIVE:
+                self._archive(source, app_id, hour, table_suffix, db_controller)
+            elif update_type == UpdateRequest.LOAD_HOUR_IGNORED:
+                self._load_into_table(app_id, None, table_suffix,
+                                      processing_definition, loading_definition,
+                                      db_controller)
+            logger.info(
+                f"SUCCESS: {update_type} for app_id={app_id}, source={source}, hour={hour}"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Exception during update {update_type} for app_id={app_id}, source={source}, hour={hour}: {e}"
+            )
+            raise
 
     def _step(self):
         update_requests = self._scheduler.update_requests()
