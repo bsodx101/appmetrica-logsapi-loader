@@ -25,19 +25,19 @@ logger = logging.getLogger(__name__)
 
 class UpdateRequest(object):
     ARCHIVE = 'archive'
-    LOAD_ONE_DATE = 'load_one_date'
-    LOAD_DATE_IGNORED = 'load_date_ignored'
+    LOAD_ONE_HOUR = 'load_one_hour'
+    LOAD_HOUR_IGNORED = 'load_hour_ignored'
 
-    def __init__(self, source: str, app_id: str, p_date: Optional[date],
+    def __init__(self, source: str, app_id: str, p_hour: Optional[datetime],
                  update_type: str):
         self.source = source
         self.app_id = app_id
-        self.date = p_date
+        self.hour = p_hour
         self.update_type = update_type
 
 
 class Scheduler(object):
-    ARCHIVED_DATE = datetime(3000, 1, 1)
+    ARCHIVED_HOUR = datetime(3000, 1, 1, 0, 0, 0)
 
     def __init__(self, state_storage: StateStorage,
                  scheduling_definition: SchedulingDefinition,
@@ -67,24 +67,24 @@ class Scheduler(object):
             app_id_state = app_id_states[0]
         return app_id_state
 
-    def _mark_date_updated(self, app_id_state: AppIdState, p_date: date,
+    def _mark_hour_updated(self, app_id_state: AppIdState, p_hour: datetime,
                            now: Optional[datetime] = None):
         logger.debug('Data for {} of {} is updated'.format(
-            p_date, app_id_state.app_id
+            p_hour, app_id_state.app_id
         ))
-        app_id_state.date_updates[p_date] = now or datetime.now()
+        app_id_state.date_updates[p_hour] = now or datetime.now()
         self._save_state()
 
-    def _mark_date_archived(self, app_id_state: AppIdState, p_date: date):
+    def _mark_hour_archived(self, app_id_state: AppIdState, p_hour: datetime):
         logger.debug('Data for {} of {} is archived'.format(
-            p_date, app_id_state.app_id
+            p_hour, app_id_state.app_id
         ))
-        app_id_state.date_updates[p_date] = self.ARCHIVED_DATE
+        app_id_state.date_updates[p_hour] = self.ARCHIVED_HOUR
         self._save_state()
 
-    def _is_date_archived(self, app_id_state: AppIdState, p_date: date):
-        updated_at = app_id_state.date_updates.get(p_date)
-        return updated_at is not None and updated_at == self.ARCHIVED_DATE
+    def _is_hour_archived(self, app_id_state: AppIdState, p_hour: datetime):
+        updated_at = app_id_state.date_updates.get(p_hour)
+        return updated_at is not None and updated_at == self.ARCHIVED_HOUR
 
     def _finish_updates(self, now: datetime = None):
         logger.debug('Updates are finished')
@@ -108,67 +108,68 @@ class Scheduler(object):
             logger.info('Sleep for {}'.format(wait_time))
             sleep(wait_time.total_seconds())
 
-    def _archive_old_dates(self, app_id_state: AppIdState):
-        for p_date, updated_at in app_id_state.date_updates.items():
-            if self._is_date_archived(app_id_state, p_date):
+    def _archive_old_hours(self, app_id_state: AppIdState):
+        for p_hour, updated_at in app_id_state.date_updates.items():
+            if self._is_hour_archived(app_id_state, p_hour):
                 continue
-            last_event_date = datetime.combine(p_date, time.max)
-            fresh = updated_at - last_event_date < self._fresh_limit
+            last_event_hour = p_hour.replace(minute=59, second=59)
+            fresh = updated_at - last_event_hour < self._fresh_limit
             if not fresh:
                 for source in self._definition.date_required_sources:
-                    yield UpdateRequest(source, app_id_state.app_id, p_date,
+                    yield UpdateRequest(source, app_id_state.app_id, p_hour,
                                         UpdateRequest.ARCHIVE)
-                self._mark_date_archived(app_id_state, p_date)
+                self._mark_hour_archived(app_id_state, p_hour)
 
-    def _update_date(self, app_id_state: AppIdState, p_date: date,
+    def _update_hour(self, app_id_state: AppIdState, p_hour: datetime,
                      started_at: datetime) \
             -> Generator[UpdateRequest, None, None]:
         sources = self._definition.date_required_sources
-        updated_at = app_id_state.date_updates.get(p_date)
-        last_event_date = datetime.combine(p_date, time.max)
+        updated_at = app_id_state.date_updates.get(p_hour)
+        last_event_hour = p_hour.replace(minute=59, second=59)
         if updated_at:
             updated = started_at - updated_at < self._update_interval
             if updated:
                 return
-        last_event_delta = (updated_at or started_at) - last_event_date
+        last_event_delta = (updated_at or started_at) - last_event_hour
         for source in sources:
-            yield UpdateRequest(source, app_id_state.app_id, p_date,
-                                UpdateRequest.LOAD_ONE_DATE)
-        self._mark_date_updated(app_id_state, p_date)
+            yield UpdateRequest(source, app_id_state.app_id, p_hour,
+                                UpdateRequest.LOAD_ONE_HOUR)
+        self._mark_hour_updated(app_id_state, p_hour)
 
         fresh = last_event_delta < self._fresh_limit
         if not fresh:
             for source in sources:
-                yield UpdateRequest(source, app_id_state.app_id, p_date,
+                yield UpdateRequest(source, app_id_state.app_id, p_hour,
                                     UpdateRequest.ARCHIVE)
-            self._mark_date_archived(app_id_state, p_date)
+            self._mark_hour_archived(app_id_state, p_hour)
 
-    def _update_date_ignored_fields(self, app_id: str):
+    def _update_hour_ignored_fields(self, app_id: str):
         for source in self._definition.date_ignored_sources:
             yield UpdateRequest(source, app_id, None,
-                                UpdateRequest.LOAD_DATE_IGNORED)
+                                UpdateRequest.LOAD_HOUR_IGNORED)
 
     def update_requests(self) \
             -> Generator[UpdateRequest, None, None]:
         self._load_state()
         self._wait_if_needed()
         started_at = datetime.now()
+        from settings import SAFE_LAG_HOURS
         for app_id in self._app_ids:
             app_id_state = self._get_or_create_app_id_state(app_id)
-            date_to = started_at.date()
-            date_from = date_to - self._update_limit
+            hour_to = (started_at - timedelta(hours=SAFE_LAG_HOURS)).replace(minute=0, second=0, microsecond=0)
+            hour_from = hour_to - self._update_limit
 
-            updates = self._archive_old_dates(app_id_state)
+            updates = self._archive_old_hours(app_id_state)
             for update_request in updates:
                 yield update_request
 
-            for pd_date in pd.date_range(date_from, date_to):
-                p_date = pd_date.to_pydatetime().date()  # type: date
-                updates = self._update_date(app_id_state, p_date, started_at)
+            for pd_hour in pd.date_range(hour_from, hour_to, freq='H'):
+                p_hour = pd_hour.to_pydatetime().replace(minute=0, second=0, microsecond=0)  # type: datetime
+                updates = self._update_hour(app_id_state, p_hour, started_at)
                 for update_request in updates:
                     yield update_request
 
-            updates = self._update_date_ignored_fields(app_id_state.app_id)
+            updates = self._update_hour_ignored_fields(app_id_state.app_id)
             for update_request in updates:
                 yield update_request
         self._finish_updates()

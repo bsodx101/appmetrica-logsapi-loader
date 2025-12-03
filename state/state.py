@@ -10,18 +10,18 @@
   You may obtain a copy of the License at:
         https://yandex.com/legal/metrica_termsofuse/
 """
-from datetime import datetime, date
+from datetime import datetime
 from typing import Optional, List, Dict
 
 
 class AppIdState(object):
     __slots__ = [
         "app_id",
-        "date_updates",
+        "date_updates",  # ключи - начало часа (datetime: 2025-12-03 14:00:00)
     ]
 
     def __init__(self, app_id: str,
-                 date_updates: Optional[Dict[date, datetime]] = None):
+                 date_updates: Optional[Dict[datetime, datetime]] = None):
         self.app_id = app_id
         self.date_updates = date_updates or dict()
 
