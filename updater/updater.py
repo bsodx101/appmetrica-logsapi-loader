@@ -103,14 +103,14 @@ class Updater(object):
             upload_df = self._process_data(app_id, df, processing_definition)
             db_controller.insert_data(upload_df, table_suffix)
 
-    def update(self, app_id: str, date: Optional[datetime.date],
+    def update(self, app_id: str, hour: Optional[datetime.datetime],
                table_suffix: str, db_controller: DbController,
                processing_definition: ProcessingDefinition,
                loading_definition: LoadingDefinition):
         since, until = None, None
-        if date:
-            since = datetime.datetime.combine(date, datetime.time.min)
-            until = datetime.datetime.combine(date, datetime.time.max)
+        if hour:
+            since = hour.replace(minute=0, second=0, microsecond=0)
+            until = hour.replace(minute=59, second=59, microsecond=999999)
 
         parts_count = 1
         is_loading_completed = False

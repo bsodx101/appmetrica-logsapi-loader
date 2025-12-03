@@ -33,25 +33,25 @@ class UpdatesController(object):
         self._sources_collection = sources_collection
         self._db_controllers_collection = db_controllers_collection
 
-    def _load_into_table(self, app_id: str, date: Optional[datetime.date],
+    def _load_into_table(self, app_id: str, hour: Optional[datetime.datetime],
                          table_suffix: str,
                          processing_definition: ProcessingDefinition,
                          loading_definition: LoadingDefinition,
                          db_controller: DbController):
-        logger.info('Loading "{date}" into "{suffix}" of "{source}" '
+        logger.info('Loading "{hour}" into "{suffix}" of "{source}" '
                     'for "{app_id}"'.format(
-            date=date or 'latest',
+            hour=hour or 'latest',
             source=loading_definition.source_name,
             app_id=app_id,
             suffix=table_suffix
         ))
-        self._updater.update(app_id, date, table_suffix, db_controller,
+        self._updater.update(app_id, hour, table_suffix, db_controller,
                              processing_definition, loading_definition)
 
-    def _archive(self, source: str, app_id: str, date: datetime.date,
+    def _archive(self, source: str, app_id: str, hour: datetime.datetime,
                  table_suffix: str, db_controller: DbController):
-        logger.info('Archiving "{date}" of "{source}" for "{app_id}"'.format(
-            date=date,
+        logger.info('Archiving "{hour}" of "{source}" for "{app_id}"'.format(
+            hour=hour,
             source=source,
             app_id=app_id
         ))
@@ -62,8 +62,8 @@ class UpdatesController(object):
         app_id = update_request.app_id
         hour = update_request.hour
         update_type = update_request.update_type
-        if date is not None:
-            table_suffix = '{}_{}'.format(app_id, date.strftime('%Y%m%d'))
+        if hour is not None:
+            table_suffix = '{}_{}'.format(app_id, hour.strftime('%Y%m%d%H'))
         else:
             table_suffix = '{}_{}'.format(app_id, DbController.LATEST_SUFFIX)
 
@@ -74,13 +74,13 @@ class UpdatesController(object):
         db_controller = \
             self._db_controllers_collection.db_controller(source)
 
-        if update_type == UpdateRequest.LOAD_ONE_DATE:
-            self._load_into_table(app_id, date, table_suffix,
+        if update_type == UpdateRequest.LOAD_ONE_HOUR:
+            self._load_into_table(app_id, hour, table_suffix,
                                   processing_definition, loading_definition,
                                   db_controller)
         elif update_type == UpdateRequest.ARCHIVE:
-            self._archive(source, app_id, date, table_suffix, db_controller)
-        elif update_type == UpdateRequest.LOAD_DATE_IGNORED:
+            self._archive(source, app_id, hour, table_suffix, db_controller)
+        elif update_type == UpdateRequest.LOAD_HOUR_IGNORED:
             self._load_into_table(app_id, None, table_suffix,
                                   processing_definition, loading_definition,
                                   db_controller)
