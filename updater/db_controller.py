@@ -69,9 +69,16 @@ class DbController(object):
         table_name = self.table_name(self.ALL_SUFFIX)
         table_exists = self._db.table_exists(table_name)
         if not table_exists:
-            self._db.create_merge_table(table_name,
-                                        self._definition.field_types.items(),
-                                        self.merge_re)
+            mini_field_types = [
+                ("DeviceID", "String"),
+                ("EventName", "String"),
+                ("EventDateTime", "DateTime")
+            ]
+            self._db.create_merge_table(
+                table_name,
+                mini_field_types,   # только три поля!
+                self.merge_re
+            )
 
     def prepare(self):
         self._prepare_db()
@@ -102,13 +109,18 @@ class DbController(object):
             ("EventName", "String"),
             ("EventDateTime", "DateTime")
         ]
-        self._db.create_table(
-            table_name,
-            field_types,
-            "EventDateTime",
-            None,
-            ["EventDateTime", "EventName", "DeviceID"]
-        )
+        # формируем SQL руками — лишние параметры не нужны!
+        create_sql = f'''
+            CREATE TABLE {self._db.db_name}.{table_name} (
+                DeviceID String,
+                EventName String,
+                EventDateTime DateTime
+            )
+            ENGINE = MergeTree()
+            PARTITION BY toYYYYMM(EventDateTime)
+            ORDER BY (EventDateTime, EventName, DeviceID)
+        '''
+        self._db._query_clickhouse(create_sql)
 
     def _ensure_table_created(self, table_name):
         if not self._db.table_exists(table_name):
