@@ -148,25 +148,19 @@ class DbController(object):
         self._ensure_table_created(table_name)
 
     def insert_data(self, df: DataFrame, table_suffix: str):
-        df = self._fetch_export_fields(df)
-        df = self._escape_data(df)
+        # Используем только три нужных поля после переименования
         required_columns = ['DeviceID', 'EventName', 'EventDateTime']
         df = df[[col for col in required_columns if col in df.columns]]
-        
-        logger.debug(f"Строк из API: {len(df)}")
-        # ЛОГИ на ВАЖНОМ ЭТАПЕ:
         logger.info(f'BEFORE INSERT: DataFrame shape: {df.shape}')
         logger.info(f'BEFORE INSERT: Columns: {df.columns.tolist()}')
-        logger.debug(f"Columns после переименования: {df.columns.tolist()}")
         if not df.empty:
             logger.info(f'BEFORE INSERT: Head:\n{df.head(3)}')
         else:
             logger.warning("BEFORE INSERT: DataFrame for insert is EMPTY!")
-
         tsv = self._export_data_to_tsv(df)
         table_name = self.table_name(table_suffix)
         self._db.insert(table_name, tsv)
-
+        # Подтверждение успешного инсерта
         try:
             row_count = int(self._db._query_clickhouse(f"SELECT count() FROM {table_name}").strip())
             logger.info(f"Inserted {len(df)} rows into {table_name}, total rows now: {row_count}")
