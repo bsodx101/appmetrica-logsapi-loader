@@ -60,7 +60,7 @@ class UpdatesController(object):
     def _update(self, update_request: UpdateRequest):
         source = update_request.source
         app_id = update_request.app_id
-        date = update_request.date
+        hour = update_request.hour
         update_type = update_request.update_type
         if date is not None:
             table_suffix = '{}_{}'.format(app_id, date.strftime('%Y%m%d'))
