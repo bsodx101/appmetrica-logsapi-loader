@@ -121,17 +121,10 @@ _postbacks_source = Source("postbacks", "postbacks", "attempt_date", None,
                            _postback_key, False, _postback_fields)
 
 
-_event_fields = _system_defined_fields + _sdk_device_fields + _app_fields + [
-    required("event_timestamp", db_uint64("EventTimestamp")),
-
+_event_fields = [
+    required("appmetrica_device_id", db_string("DeviceID")),
     optional("event_name", db_string("EventName")),
-    optional("event_json", db_string("EventParameters")),
-    optional("event_receive_timestamp", db_uint64("ReceiveTimestamp")),
-
-    required("event_date", db_date("EventDate"), timestamp_to_date("event_timestamp")),
-    optional("event_datetime", db_datetime("EventDateTime"), timestamp_to_datetime("event_timestamp")),
-    optional("event_receive_date", db_date("ReceiveDate"), timestamp_to_date("event_receive_timestamp")),
-    optional("event_receive_datetime", db_datetime("ReceiveDateTime"), timestamp_to_datetime("event_receive_timestamp")),
+    optional("event_datetime", db_datetime("EventDateTime")),
 ]  # type: List[Field]
 _event_key = [
     "event_name",
