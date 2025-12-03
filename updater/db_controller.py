@@ -149,17 +149,27 @@ class DbController(object):
 
     def insert_data(self, df: DataFrame, table_suffix: str):
         df = self._fetch_export_fields(df)
-        df = self._escape_data(df)  # TODO: Works too slow
+        df = self._escape_data(df)
         required_columns = ['DeviceID', 'EventName', 'EventDateTime']
         df = df[[col for col in required_columns if col in df.columns]]
-        logger.debug(f"Inserting {len(df)} rows: {df.columns.tolist()}")
+        
+        logger.debug(f"Строк из API: {len(df)}")
+        # ЛОГИ на ВАЖНОМ ЭТАПЕ:
+        logger.info(f'BEFORE INSERT: DataFrame shape: {df.shape}')
+        logger.info(f'BEFORE INSERT: Columns: {df.columns.tolist()}')
+        logger.debug(f"Columns после переименования: {df.columns.tolist()}")
         if not df.empty:
-            logger.debug(f"Sample data:\n{df.head(3)}")
+            logger.info(f'BEFORE INSERT: Head:\n{df.head(3)}')
+        else:
+            logger.warning("BEFORE INSERT: DataFrame for insert is EMPTY!")
+
         tsv = self._export_data_to_tsv(df)
         table_name = self.table_name(table_suffix)
         self._db.insert(table_name, tsv)
+
         try:
             row_count = int(self._db._query_clickhouse(f"SELECT count() FROM {table_name}").strip())
             logger.info(f"Inserted {len(df)} rows into {table_name}, total rows now: {row_count}")
         except Exception as e:
             logger.warning(f"Could not fetch row count for {table_name}: {e}")
+
