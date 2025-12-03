@@ -97,12 +97,17 @@ class DbController(object):
         return df.to_csv(index=False, sep='\t')
 
     def _create_table(self, table_name):
+        field_types = [
+            ("DeviceID", "String"),
+            ("EventName", "String"),
+            ("EventDateTime", "DateTime")
+        ]
         self._db.create_table(
             table_name,
-            self._definition.field_types.items(),
-            self.date_field,
-            self.sampling_field,
-            self.primary_keys
+            field_types,
+            "EventDateTime",
+            None,
+            ["EventDateTime", "EventName", "DeviceID"]
         )
 
     def _ensure_table_created(self, table_name):
@@ -133,7 +138,16 @@ class DbController(object):
     def insert_data(self, df: DataFrame, table_suffix: str):
         df = self._fetch_export_fields(df)
         df = self._escape_data(df)  # TODO: Works too slow
-        logger.debug("Inserting {} rows".format(len(df)))
+        required_columns = ['DeviceID', 'EventName', 'EventDateTime']
+        df = df[[col for col in required_columns if col in df.columns]]
+        logger.debug(f"Inserting {len(df)} rows: {df.columns.tolist()}")
+        if not df.empty:
+            logger.debug(f"Sample data:\n{df.head(3)}")
         tsv = self._export_data_to_tsv(df)
         table_name = self.table_name(table_suffix)
         self._db.insert(table_name, tsv)
+        try:
+            row_count = int(self._db._query_clickhouse(f"SELECT count() FROM {table_name}").strip())
+            logger.info(f"Inserted {len(df)} rows into {table_name}, total rows now: {row_count}")
+        except Exception as e:
+            logger.warning(f"Could not fetch row count for {table_name}: {e}")
