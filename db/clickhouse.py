@@ -36,14 +36,17 @@ class ClickhouseDatabase(Database):
             auth = (self.login, self.password)
         return auth
 
-    def _query_clickhouse(self, query_text: str, **params):
-        log_data = query_text
+    def _query_clickhouse(self, query_text, **params):
+        # Безопасно для любых типов: str или bytes
+        log_data = query_text if isinstance(query_text, str) else query_text.decode('utf-8', errors='replace')
         if len(log_data) > self.QUERY_LOG_LIMIT:
             log_data = log_data[:self.QUERY_LOG_LIMIT] + '[...]'
         log_data = log_data.replace('\n', ' ')
         logger.debug('Query ClickHouse: {} >>> {}'.format(params, log_data))
         auth = self._get_clickhouse_auth()
-        r = requests.post(self.url, data=query_text, params=params, auth=auth)
+        # передавать либо str либо bytes — requests работает с обоими
+        r = requests.post(self.url, data=query_text, params=params, auth=auth,
+                          headers={'Content-Type': 'text/tab-separated-values; charset=utf-8'})
         if r.status_code == 200:
             return r.text
         else:
