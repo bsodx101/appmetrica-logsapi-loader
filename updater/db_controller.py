@@ -96,10 +96,12 @@ class DbController(object):
         df.replace(escape_chars, regex=True, inplace=True)
         return df
 
-    @staticmethod
-    def _export_data_to_tsv(df: DataFrame) -> bytes:
+    def _export_data_to_tsv(self, df: DataFrame, as_bytes: bool = False):
         logger.debug("Exporting data to csv")
-        return df.to_csv(index=False, sep='\t', encoding='utf-8').encode('utf-8')
+        if as_bytes:
+            return df.to_csv(index=False, sep='\t', encoding='utf-8').encode('utf-8')
+        else:
+            return df.to_csv(index=False, sep='\t', encoding='utf-8')
 
     def _create_table(self, table_name):
         # Используем имена db_name и db_type для export_fields_obj
@@ -163,7 +165,8 @@ class DbController(object):
             logger.info(f'BEFORE INSERT: Head:\n{df.head(3)}')
         else:
             logger.warning("BEFORE INSERT: DataFrame for insert is EMPTY!")
-        tsv = self._export_data_to_tsv(df)
+        as_bytes = self._definition.table_name.startswith("profiles")
+        tsv = self._export_data_to_tsv(df, as_bytes=as_bytes)
         # Insert TSV data into DB
         table_name = self.table_name(table_suffix)
         self._db.insert(table_name, tsv)
