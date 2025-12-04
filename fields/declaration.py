@@ -209,16 +209,16 @@ _sessions_starts_source = Source(
 
 import settings
 
-_profiles_fields = []
-for fname in settings.PROFILE_FIELDS:
-    norm_name = fname.strip()
-    # Для "appmetrica_device_id" делаем DeviceID, остальные оставляем как есть или делаем нормализацию
-    if norm_name == "appmetrica_device_id":
-        _profiles_fields.append(required(norm_name, db_string("DeviceID")))
-    else:
-        # ClickHouse не разрешает пробелы — превращаем пробелы в подчёркивания
-        db_col = norm_name.replace(" ", "_")
-        _profiles_fields.append(optional(norm_name, db_string(db_col)))
+# Жёсткий маппинг только для нужных profile fields с правильными именами
+profile_field_mappings = {
+    "appmetrica_device_id": "DeviceID",
+    "№ карты лояльности": "LoyaltyCardNumber",
+    "Номер телефона": "PhoneNumber"
+}
+_profiles_fields = [
+    required(src, db_string(dst))
+    for src, dst in profile_field_mappings.items()
+]
 
 _profiles_source = Source(
     "profiles",
