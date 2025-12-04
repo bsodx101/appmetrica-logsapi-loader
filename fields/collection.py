@@ -45,9 +45,12 @@ class DbTableDefinition(object):
         self.column_types = dict()
         self.field_types = dict()
         self.export_fields = []
+        self.export_fields_obj = []  # добавлено!
         self.sampling_field = None
         for field in source.fields:
             field_name = field.load_name
+            if not field.generated:
+                self.export_fields_obj.append(field)
             if field_name == source.date_field_name:
                 self.date_field = field.db_name
             if field_name == source.sampling_field_name:

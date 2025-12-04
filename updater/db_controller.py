@@ -151,8 +151,10 @@ class DbController(object):
         self._ensure_table_created(table_name)
 
     def insert_data(self, df: DataFrame, table_suffix: str):
-        # используем только export_fields, определённые для источника
-        required_columns = [col for col in self._definition.export_fields if col in df.columns]
+        # Универсальный rename для всех sources, включая profiles
+        rename_dict = {field.load_name: field.db_name for field in getattr(self._definition, 'export_fields_obj', [])}
+        df = df.rename(columns=rename_dict)
+        required_columns = [field.db_name for field in getattr(self._definition, 'export_fields_obj', []) if field.db_name in df.columns]
         df = df[required_columns]
         logger.info(f'BEFORE INSERT: DataFrame shape: {df.shape}')
         logger.info(f'BEFORE INSERT: Columns: {df.columns.tolist()}')
