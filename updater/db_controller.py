@@ -69,14 +69,11 @@ class DbController(object):
         table_name = self.table_name(self.ALL_SUFFIX)
         table_exists = self._db.table_exists(table_name)
         if not table_exists:
-            mini_field_types = [
-                ("DeviceID", "String"),
-                ("EventName", "String"),
-                ("EventDateTime", "DateTime")
-            ]
+            # Теперь схема формируется по export_fields_obj (db_name/db_type) для source
+            mini_field_types = [(field.db_name, field.db_type) for field in self._definition.export_fields_obj]
             self._db.create_merge_table(
                 table_name,
-                mini_field_types,   # только три поля!
+                mini_field_types,
                 self.merge_re
             )
 
@@ -104,24 +101,22 @@ class DbController(object):
         return df.to_csv(index=False, sep='\t')
 
     def _create_table(self, table_name):
-        # Получаем типы колонок для текущего source через DbTableDefinition
-        column_types = self._definition.column_types
-        columns_sql = ",\n    ".join([f"{col} {col_type}" for col, col_type in column_types.items()])
-        # partition_field: гарантируем что он __DateTime__ и реально есть в колонках
+        # Используем имена db_name и db_type для export_fields_obj
+        columns_sql = ",\n    ".join([f"{field.db_name} {field.db_type}" for field in self._definition.export_fields_obj])
         partition_field = getattr(
             self._definition, 'date_field',
-            [col for col, typ in column_types.items() if typ.startswith('DateTime') or typ.startswith('Date')][0]
+            [field.db_name for field in self._definition.export_fields_obj if field.db_type.startswith('DateTime') or field.db_type.startswith('Date')][0]
         )
-        # order_by только по реально существующим в схеме полям
         order_fields = self._definition.primary_keys if self._definition.primary_keys else [partition_field]
-        order_sql = ", ".join([col for col in order_fields if col in column_types.keys()])
+        allowed_names = [field.db_name for field in self._definition.export_fields_obj]
+        order_sql = ", ".join([col for col in order_fields if col in allowed_names])
         create_sql = f'''
             CREATE TABLE {self._db.db_name}.{table_name} (
                 {columns_sql}
             )
             ENGINE = MergeTree()
             PARTITION BY toYYYYMM({partition_field})
-            ORDER BY ({order_sql})
+            ORDER BY ({order_sql if order_sql else partition_field})
         '''
         self._db._query_clickhouse(create_sql)
 
