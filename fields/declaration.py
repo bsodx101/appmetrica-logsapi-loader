@@ -230,8 +230,6 @@ _profiles_source = Source(
     _profiles_fields
 )
 
-sources.append(_profiles_source)
-
 sources = [
     _clicks_source,
     _installations_source,
@@ -240,6 +238,9 @@ sources = [
     _push_tokens_source,
     _crashes_source,
     _errors_source,
-    _sessions_starts_source,
-    _profiles_source
+    _sessions_starts_source
+    # больше ничего внутрь списка, только append ниже!
 ]
+
+# Тут любой append/добавление динамических
+sources.append(_profiles_source)
