@@ -18,12 +18,16 @@ class AppIdState(object):
     __slots__ = [
         "app_id",
         "date_updates",  # ключи - начало часа (datetime: 2025-12-03 14:00:00)
+        "last_profile_update",  # только для профилей
     ]
 
     def __init__(self, app_id: str,
                  date_updates: Optional[Dict[datetime, datetime]] = None):
         self.app_id = app_id
         self.date_updates = date_updates or dict()
+        # Инициализация last_profile_update для профилей
+        if self.app_id.startswith("profiles_"):
+            self.last_profile_update = None
 
 
 class State(object):
