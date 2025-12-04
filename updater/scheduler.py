@@ -108,7 +108,7 @@ class Scheduler(object):
             logger.info('Sleep for {}'.format(wait_time))
             sleep(wait_time.total_seconds())
 
-    def _archive_old_hours(self, app_id_state: AppIdState):
+    def _archive_old_hours(self, app_id_state: AppIdState, app_id: str):
         for p_hour, updated_at in app_id_state.date_updates.items():
             if self._is_hour_archived(app_id_state, p_hour):
                 continue
@@ -116,11 +116,11 @@ class Scheduler(object):
             fresh = updated_at - last_event_hour < self._fresh_limit
             if not fresh:
                 for source in self._definition.date_required_sources:
-                    yield UpdateRequest(source, app_id_state.app_id, p_hour,
+                    yield UpdateRequest(source, app_id, p_hour,
                                         UpdateRequest.ARCHIVE)
                 self._mark_hour_archived(app_id_state, p_hour)
 
-    def _update_hour(self, app_id_state: AppIdState, p_hour: datetime,
+    def _update_hour(self, app_id_state: AppIdState, app_id: str, p_hour: datetime,
                      started_at: datetime) \
             -> Generator[UpdateRequest, None, None]:
         sources = self._definition.date_required_sources
@@ -132,14 +132,14 @@ class Scheduler(object):
                 return
         last_event_delta = (updated_at or started_at) - last_event_hour
         for source in sources:
-            yield UpdateRequest(source, app_id_state.app_id, p_hour,
+            yield UpdateRequest(source, app_id, p_hour,
                                 UpdateRequest.LOAD_ONE_HOUR)
         self._mark_hour_updated(app_id_state, p_hour)
 
         fresh = last_event_delta < self._fresh_limit
         if not fresh:
             for source in sources:
-                yield UpdateRequest(source, app_id_state.app_id, p_hour,
+                yield UpdateRequest(source, app_id, p_hour,
                                     UpdateRequest.ARCHIVE)
             self._mark_hour_archived(app_id_state, p_hour)
 
@@ -175,17 +175,17 @@ class Scheduler(object):
                 hour_to = (started_at - timedelta(hours=SAFE_LAG_HOURS)).replace(minute=0, second=0, microsecond=0)
                 hour_from = hour_to - self._update_limit
 
-                updates = self._archive_old_hours(app_id_state)
+                updates = self._archive_old_hours(app_id_state, app_id)
                 for update_request in updates:
                     yield update_request
 
                 for pd_hour in pd.date_range(hour_from, hour_to, freq='H'):
                     p_hour = pd_hour.to_pydatetime().replace(minute=0, second=0, microsecond=0)  # type: datetime
-                    updates = self._update_hour(app_id_state, p_hour, started_at)
+                    updates = self._update_hour(app_id_state, app_id, p_hour, started_at)
                     for update_request in updates:
                         yield update_request
 
-                updates = self._update_hour_ignored_fields(app_id_state.app_id)
+                updates = self._update_hour_ignored_fields(app_id)
                 for update_request in updates:
                     yield update_request
         # Добавить профили в tasks
