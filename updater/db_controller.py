@@ -97,9 +97,9 @@ class DbController(object):
         return df
 
     @staticmethod
-    def _export_data_to_tsv(df: DataFrame) -> str:
+    def _export_data_to_tsv(df: DataFrame) -> bytes:
         logger.debug("Exporting data to csv")
-        return df.to_csv(index=False, sep='\t', encoding='utf-8')
+        return df.to_csv(index=False, sep='\t', encoding='utf-8').encode('utf-8')
 
     def _create_table(self, table_name):
         # Используем имена db_name и db_type для export_fields_obj
@@ -164,6 +164,7 @@ class DbController(object):
         else:
             logger.warning("BEFORE INSERT: DataFrame for insert is EMPTY!")
         tsv = self._export_data_to_tsv(df)
+        # Insert TSV data into DB
         table_name = self.table_name(table_suffix)
         self._db.insert(table_name, tsv)
         try:
