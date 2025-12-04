@@ -148,7 +148,6 @@ class DbController(object):
         self._ensure_table_created(table_name)
 
     def insert_data(self, df: DataFrame, table_suffix: str):
-        # Используем только три нужных поля после переименования
         required_columns = ['DeviceID', 'EventName', 'EventDateTime']
         df = df[[col for col in required_columns if col in df.columns]]
         logger.info(f'BEFORE INSERT: DataFrame shape: {df.shape}')
@@ -160,9 +159,8 @@ class DbController(object):
         tsv = self._export_data_to_tsv(df)
         table_name = self.table_name(table_suffix)
         self._db.insert(table_name, tsv)
-        # Подтверждение успешного инсерта
         try:
-            row_count = int(self._db._query_clickhouse(f"SELECT count() FROM {table_name}").strip())
+            row_count = int(self._db._query_clickhouse(f"SELECT count() FROM {self._db.db_name}.{table_name}").strip())
             logger.info(f"Inserted {len(df)} rows into {table_name}, total rows now: {row_count}")
         except Exception as e:
             logger.warning(f"Could not fetch row count for {table_name}: {e}")
