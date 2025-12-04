@@ -80,19 +80,22 @@ class UpdatesController(object):
 
         try:
             if update_type == UpdateRequest.LOAD_ONE_HOUR:
-                self._load_into_table(app_id, hour, table_suffix,
-                                      processing_definition, loading_definition,
-                                      db_controller)
-                # Сохраняем состояние только для событий и сессий (НЕ profiles)
-                if source in ("events", "sessions_starts"):
-                    app_id_state = self._scheduler._get_or_create_app_id_state(source, app_id)
-                    self._scheduler._mark_hour_updated(app_id_state, hour)
+                if source != "profiles":
+                    self._load_into_table(app_id, hour, table_suffix,
+                                          processing_definition, loading_definition,
+                                          db_controller)
+                    # Сохраняем состояние только для событий и сессий (НЕ profiles)
+                    if source in ("events", "sessions_starts"):
+                        app_id_state = self._scheduler._get_or_create_app_id_state(source, app_id)
+                        self._scheduler._mark_hour_updated(app_id_state, hour)
             elif update_type == UpdateRequest.ARCHIVE:
-                self._archive(source, app_id, hour, table_suffix, db_controller)
+                if source != "profiles":
+                    self._archive(source, app_id, hour, table_suffix, db_controller)
             elif update_type == UpdateRequest.LOAD_HOUR_IGNORED:
-                self._load_into_table(app_id, None, table_suffix,
-                                      processing_definition, loading_definition,
-                                      db_controller)
+                if source != "profiles":
+                    self._load_into_table(app_id, None, table_suffix,
+                                          processing_definition, loading_definition,
+                                          db_controller)
             elif update_type == "load_profiles":
                 self._load_profiles(app_id, db_controller)
             logger.info(
