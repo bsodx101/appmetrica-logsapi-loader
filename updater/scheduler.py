@@ -189,10 +189,14 @@ class Scheduler(object):
                 updates = self._update_hour_ignored_fields(app_id)
                 for update_request in updates:
                     yield update_request
-        # Добавить профили в tasks
+        # Добавить профили в tasks (Только одна таска, без почасовых!)
         now = datetime.now()
         for app_id in self._app_ids:
             updates = self._update_profiles_if_needed(app_id, now)
             for update_request in updates:
-                yield update_request
+                # ГАРАНТИРУЕМ только type==load_profiles и hour is None
+                if (update_request.source == "profiles"
+                      and update_request.update_type == "load_profiles"
+                      and update_request.hour is None):
+                    yield update_request
         self._finish_updates()
