@@ -128,13 +128,16 @@ class UpdatesController(object):
             # Шаг 2. Создать temp-таблицу по нужной схеме
             db_controller._create_table(tmp_table)
             # Шаг 3. Загрузить профили в DataFrame (предполагается, что у вас есть функция)
-            profiles_df = self.get_profiles_dataframe(app_id)
-            print("API статус и превью данных вывода смотри выше")
-            if profiles_df is None or profiles_df.empty:
+            chunk_gen = self.get_profiles_dataframe(app_id)
+            has_data = False
+            for df_chunk in chunk_gen or []:
+                has_data = True
+                logger.info(f"[PROFILES] Insert chunk to ClickHouse: rows {len(df_chunk)}")
+                db_controller.insert_data(df_chunk, tmp_suffix)
+            if not has_data:
                 logger.error(f"[PROFILES] No DataFrame for {app_id}!")
                 return
-            logger.info(f"[PROFILES] Fetch complete: {len(profiles_df)} rows, columns: {profiles_df.columns.tolist()}")
-            db_controller.insert_data(profiles_df, tmp_suffix)
+            logger.info(f"[PROFILES] Fetch complete and loaded into temp table for app_id={app_id}")
             # Шаг 4. После успеха — удалить old и переименовать temp
             db_controller._db.drop_table(latest_table)
             db_controller._db.rename_table(tmp_table, latest_table)
@@ -147,13 +150,14 @@ class UpdatesController(object):
             except Exception as ee:
                 logger.warning(f"Also failed to drop temp table {tmp_table}: {ee}")
 
-    def get_profiles_dataframe(self, app_id, max_attempts=240, polling_interval=20):
+    def get_profiles_dataframe(self, app_id, chunksize=500_000, max_attempts=240, polling_interval=20):
         import pandas as pd
         import requests
-        import io
+        import os
+        import time
         from settings import TOKEN
 
-        url = "https://api.appmetrica.yandex.ru/logs/v1/export/profiles.json"
+        url = "https://api.appmetrica.yandex.ru/logs/v1/export/profiles.csv"
         params = {
             "application_id": app_id,
             "fields": "appmetrica_device_id,№ карты лояльности,Номер телефона",
@@ -163,23 +167,29 @@ class UpdatesController(object):
         headers = {
             "Authorization": f"OAuth {TOKEN}"
         }
-
+        filename = f"/tmp/profiles_{app_id}_{int(time.time())}.csv"
         for attempt in range(max_attempts):
-            resp = requests.get(url, params=params, headers=headers)
+            resp = requests.get(url, params=params, headers=headers, stream=True)
             print(f"[PROFILES] Attempt {attempt+1}: API STATUS = {resp.status_code}")
             if resp.status_code == 200:
-                print("[PROFILES] Got status 200, parsing DataFrame...")
+                print("[PROFILES] Data ready. Downloading as CSV...")
+                with open(filename, 'wb') as f:
+                    for chunk in resp.iter_content(chunk_size=2**20):
+                        f.write(chunk)
+                print(f"[PROFILES] Saved snapshot to {filename}. Chunk-loading with pandas.")
                 try:
-                    df = pd.read_json(io.StringIO(resp.text))
-                except Exception as e:
-                    print(f"Failed to parse JSON: {e}")
-                    return None
-                df = df.rename(columns={
-                    "appmetrica_device_id": "DeviceID",
-                    "№ карты лояльности": "LoyaltyCardNumber",
-                    "Номер телефона": "PhoneNumber"
-                })
-                return df
+                    reader = pd.read_csv(filename, chunksize=chunksize)
+                    for i, df in enumerate(reader, 1):
+                        df = df.rename(columns={
+                            "appmetrica_device_id": "DeviceID",
+                            "№ карты лояльности": "LoyaltyCardNumber",
+                            "Номер телефона": "PhoneNumber"
+                        })
+                        print(f"[PROFILES] Yielding chunk {i}, shape: {df.shape}")
+                        yield df
+                finally:
+                    os.remove(filename)
+                return
             elif resp.status_code == 202:
                 print("[PROFILES] Data export in queue or preparing, waiting before next attempt...")
                 time.sleep(polling_interval)
@@ -187,10 +197,9 @@ class UpdatesController(object):
             else:
                 print("[PROFILES] Unhandled status code:", resp.status_code)
                 print(resp.text[:300])
-                return None
-
+                return
         print("[PROFILES] Gave up polling profiles (timeout!)")
-        return None
+        return
 
     def _step(self):
         update_requests = self._scheduler.update_requests()
