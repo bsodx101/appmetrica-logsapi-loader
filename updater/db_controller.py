@@ -103,11 +103,16 @@ class DbController(object):
     def _create_table(self, table_name):
         # Используем имена db_name и db_type для export_fields_obj
         columns_sql = ",\n    ".join([f"{field.db_name} {field.db_type}" for field in self._definition.export_fields_obj])
-        partition_field = getattr(
-            self._definition, 'date_field',
-            [field.db_name for field in self._definition.export_fields_obj if field.db_type.startswith('DateTime') or field.db_type.startswith('Date')][0]
-        )
-        order_fields = self._definition.primary_keys if self._definition.primary_keys else [partition_field]
+
+        partition_candidates = [field.db_name for field in self._definition.export_fields_obj if field.db_type.startswith('DateTime') or field.db_type.startswith('Date')]
+        if partition_candidates:
+            partition_field = partition_candidates[0]
+            partition_sql = f"PARTITION BY toYYYYMM({partition_field})"
+        else:
+            # Если нет ни одного Date/DateTime - безопасная заглушка!
+            partition_sql = "PARTITION BY tuple()"
+
+        order_fields = self._definition.primary_keys if self._definition.primary_keys else (partition_candidates[:1] if partition_candidates else [])
         allowed_names = [field.db_name for field in self._definition.export_fields_obj]
         order_sql = ", ".join([col for col in order_fields if col in allowed_names])
         create_sql = f'''
@@ -115,8 +120,8 @@ class DbController(object):
                 {columns_sql}
             )
             ENGINE = MergeTree()
-            PARTITION BY toYYYYMM({partition_field})
-            ORDER BY ({order_sql if order_sql else partition_field})
+            {partition_sql}
+            ORDER BY ({order_sql if order_sql else (partition_candidates[0] if partition_candidates else '')})
         '''
         self._db._query_clickhouse(create_sql)
 
