@@ -128,8 +128,9 @@ class UpdatesController(object):
             # Шаг 2. Создать temp-таблицу по нужной схеме
             db_controller._create_table(tmp_table)
             # Шаг 3. Загрузить профили в DataFrame (предполагается, что у вас есть функция)
-            profiles_df = db_controller.load_profiles_df(app_id) if hasattr(db_controller, 'load_profiles_df') else None
-            if profiles_df is None:
+            profiles_df = self.get_profiles_dataframe(app_id)
+            print("API статус и превью данных вывода смотри выше")
+            if profiles_df is None or profiles_df.empty:
                 logger.error(f"[PROFILES] No DataFrame for {app_id}!")
                 return
             logger.info(f"[PROFILES] Fetch complete: {len(profiles_df)} rows, columns: {profiles_df.columns.tolist()}")
@@ -145,6 +146,38 @@ class UpdatesController(object):
                 db_controller._db.drop_table(tmp_table)
             except Exception as ee:
                 logger.warning(f"Also failed to drop temp table {tmp_table}: {ee}")
+
+    def get_profiles_dataframe(self, app_id):
+        import pandas as pd
+        import requests
+        import io
+        from settings import TOKEN
+
+        url = "https://api.appmetrica.yandex.ru/logs/v1/export/profiles.json"
+        params = {
+            "application_id": app_id,
+            "fields": "appmetrica_device_id,№ карты лояльности,Номер телефона",
+            "date_dimension": "default",
+            "use_utf8_bom": "true"
+        }
+        headers = {
+            "Authorization": f"OAuth {TOKEN}"
+        }
+        resp = requests.get(url, params=params, headers=headers)
+        print("API STATUS:", resp.status_code)
+        print("API BODY (truncated):", resp.text[:300])
+        resp.raise_for_status()
+        try:
+            df = pd.read_json(io.StringIO(resp.text))
+        except Exception as e:
+            print(f"Failed to parse JSON: {e}")
+            return None
+        df = df.rename(columns={
+            "appmetrica_device_id": "DeviceID",
+            "№ карты лояльности": "LoyaltyCardNumber",
+            "Номер телефона": "PhoneNumber"
+        })
+        return df
 
     def _step(self):
         update_requests = self._scheduler.update_requests()
