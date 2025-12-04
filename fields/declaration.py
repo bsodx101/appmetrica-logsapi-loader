@@ -208,6 +208,27 @@ _sessions_starts_source = Source("sessions_starts", "sessions_starts", "session_
                                  _sessions_start_key, False, _sessions_start_fields)
 
 
+import settings
+
+_profiles_fields = [
+    required("appmetrica_device_id", db_string("DeviceID")),
+]
+for fname in settings.PROFILE_FIELDS:
+    norm_name = fname.strip()
+    if norm_name and norm_name != "appmetrica_device_id":
+        db_col = norm_name.replace(" ", "")
+        _profiles_fields.append(optional(norm_name, db_string(db_col)))
+
+_profiles_source = Source(
+    "profiles",
+    "profiles",
+    "profile_date",
+    "appmetrica_device_id",
+    ["appmetrica_device_id"],
+    False,
+    _profiles_fields
+)
+
 sources = [
     _clicks_source,
     _installations_source,
@@ -216,5 +237,6 @@ sources = [
     _push_tokens_source,
     _crashes_source,
     _errors_source,
-    _sessions_starts_source
+    _sessions_starts_source,
+    _profiles_source
 ]

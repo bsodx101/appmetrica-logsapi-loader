@@ -57,11 +57,11 @@ class Scheduler(object):
     def _save_state(self):
         self._state_storage.save(self._state)
 
-    def _get_or_create_app_id_state(self, app_id: str) -> AppIdState:
-        app_id_states = [s for s in self._state.app_id_states
-                         if s.app_id == app_id]
+    def _get_or_create_app_id_state(self, source: str, app_id: str) -> AppIdState:
+        uniq_id = f"{app_id}:{source}"
+        app_id_states = [s for s in self._state.app_id_states if s.app_id == uniq_id]
         if len(app_id_states) == 0:
-            app_id_state = AppIdState(app_id)
+            app_id_state = AppIdState(uniq_id)
             self._state.app_id_states.append(app_id_state)
         else:
             app_id_state = app_id_states[0]
@@ -148,6 +148,21 @@ class Scheduler(object):
             yield UpdateRequest(source, app_id, None,
                                 UpdateRequest.LOAD_HOUR_IGNORED)
 
+    def _update_profiles_if_needed(self, app_id: str, now: datetime):
+        profiles_app_id_state = self._get_or_create_app_id_state("profiles", app_id)
+        if not hasattr(profiles_app_id_state, 'last_profile_update'):
+            profiles_app_id_state.last_profile_update = None
+        from settings import PROFILE_UPDATE_INTERVAL
+        last_profile_update = profiles_app_id_state.last_profile_update
+        if last_profile_update is None or (now - last_profile_update).total_seconds() > PROFILE_UPDATE_INTERVAL * 3600:
+            yield UpdateRequest(
+                source="profiles",
+                app_id=app_id,
+                p_hour=None,
+                update_type="load_profiles"
+            )
+            profiles_app_id_state.last_profile_update = now
+
     def update_requests(self) \
             -> Generator[UpdateRequest, None, None]:
         self._load_state()
@@ -170,6 +185,12 @@ class Scheduler(object):
                     yield update_request
 
             updates = self._update_hour_ignored_fields(app_id_state.app_id)
+            for update_request in updates:
+                yield update_request
+        # Добавить профили в tasks
+        now = datetime.now()
+        for app_id in self._app_ids:
+            updates = self._update_profiles_if_needed(app_id, now)
             for update_request in updates:
                 yield update_request
         self._finish_updates()

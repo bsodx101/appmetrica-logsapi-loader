@@ -89,6 +89,8 @@ class UpdatesController(object):
                 self._load_into_table(app_id, None, table_suffix,
                                       processing_definition, loading_definition,
                                       db_controller)
+            elif update_type == "load_profiles":
+                self._load_profiles(app_id, db_controller)
             logger.info(
                 f"SUCCESS: {update_type} for app_id={app_id}, source={source}, hour={hour}"
             )
@@ -97,6 +99,11 @@ class UpdatesController(object):
                 f"Exception during update {update_type} for app_id={app_id}, source={source}, hour={hour}: {e}"
             )
             raise
+
+    def _load_profiles(self, app_id, db_controller):
+        # TODO: Реализуй отдельно логику snapshot загрузки профиля с ручным insert в таблицу профилей.
+        logger.info(f"Profiles load for app_id={app_id}")
+        pass
 
     def _step(self):
         update_requests = self._scheduler.update_requests()
