@@ -85,14 +85,14 @@ class Updater(object):
                                   loading_definition.fields,
                                   since, until, LogsApiClient.DATE_DIMENSION_CREATE, parts_count)
         for df in df_it:
-            # Маппинг имён колонок под ClickHouse
-            rename_dict = {
-                "appmetrica_device_id": "DeviceID",
-                "event_name": "EventName",
-                "event_datetime": "EventDateTime"
-            }
+            # Универсальный маппинг для любого source (events, sessions_starts, ...)
+            fields_obj = getattr(loading_definition, "fields_obj", None)
+            if not fields_obj and hasattr(db_controller, "_definition"):
+                fields_obj = getattr(db_controller._definition, "export_fields_obj", [])
+            rename_dict = {field.load_name: field.db_name for field in fields_obj}
             df = df.rename(columns=rename_dict)
-            df = df[["DeviceID", "EventName", "EventDateTime"]]  # только нужные для БД
+            required_columns = [field.db_name for field in fields_obj if field.db_name in df.columns]
+            df = df[required_columns]
             logger.info(f"API-запрос для app_id={app_id}")
             logger.info(f"AFTER API: shape={df.shape}")
             logger.info(f"AFTER API: columns={df.columns.tolist()}")

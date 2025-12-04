@@ -105,9 +105,38 @@ class UpdatesController(object):
             raise
 
     def _load_profiles(self, app_id, db_controller):
-        # TODO: Реализуй отдельно логику snapshot загрузки профиля с ручным insert в таблицу профилей.
-        logger.info(f"Profiles load for app_id={app_id}")
-        pass
+        """
+        Загружает актуальный snapshot профиля в ClickHouse:
+        - Загружает данные во временную таблицу profiles_<app_id>_tmp;
+        - Если всё прошло успешно, atomically переставляет таблицы:
+          временную -> latest (устаревшую удаляет).
+        - Если что-то не так — не затрагивает актуальную таблицу.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        tmp_suffix = 'tmp'
+        latest_suffix = 'latest'
+        tmp_table = db_controller.table_name(tmp_suffix)
+        latest_table = db_controller.table_name(latest_suffix)
+        try:
+            # Шаг 1. Удалить temp-таблицу, если вдруг она осталась
+            db_controller._db.drop_table(tmp_table)
+            # Шаг 2. Создать temp-таблицу по нужной схеме
+            db_controller._create_table(tmp_table)
+            # Шаг 3. Загрузить профили в DataFrame (предполагается, что у вас есть функция)
+            profiles_df = db_controller.load_profiles_df(app_id) if hasattr(db_controller, 'load_profiles_df') else None
+            assert profiles_df is not None, 'profiles_df must be fetched!'
+            db_controller.insert_data(profiles_df, tmp_suffix)
+            # Шаг 4. После успеха — удалить old и переименовать temp
+            db_controller._db.drop_table(latest_table)
+            db_controller._db.rename_table(tmp_table, latest_table)
+            logger.info(f"Profiles for {app_id} successfully swapped to latest.")
+        except Exception as e:
+            logger.error(f"Failed to update profiles table for {app_id}: {e}")
+            try:
+                db_controller._db.drop_table(tmp_table)
+            except Exception as ee:
+                logger.warning(f"Also failed to drop temp table {tmp_table}: {ee}")
 
     def _step(self):
         update_requests = self._scheduler.update_requests()
