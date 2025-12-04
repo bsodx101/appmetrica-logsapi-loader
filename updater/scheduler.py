@@ -74,6 +74,8 @@ class Scheduler(object):
 
     def _mark_hour_updated(self, app_id_state: AppIdState, p_hour: datetime,
                            now: Optional[datetime] = None):
+        if app_id_state.app_id.startswith('profiles_'):
+            return
         logger.debug('Data for {} of {} is updated'.format(
             p_hour, app_id_state.app_id
         ))
@@ -81,6 +83,8 @@ class Scheduler(object):
         self._save_state()
 
     def _mark_hour_archived(self, app_id_state: AppIdState, p_hour: datetime):
+        if app_id_state.app_id.startswith('profiles_'):
+            return
         logger.debug('Data for {} of {} is archived'.format(
             p_hour, app_id_state.app_id
         ))

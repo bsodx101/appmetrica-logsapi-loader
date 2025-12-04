@@ -122,17 +122,22 @@ class UpdatesController(object):
         tmp_table = db_controller.table_name(tmp_suffix)
         latest_table = db_controller.table_name(latest_suffix)
         try:
+            logger.info(f"[PROFILES] Start loading fresh snapshot for app_id={app_id}")
             # Шаг 1. Удалить temp-таблицу, если вдруг она осталась
             db_controller._db.drop_table(tmp_table)
             # Шаг 2. Создать temp-таблицу по нужной схеме
             db_controller._create_table(tmp_table)
             # Шаг 3. Загрузить профили в DataFrame (предполагается, что у вас есть функция)
             profiles_df = db_controller.load_profiles_df(app_id) if hasattr(db_controller, 'load_profiles_df') else None
-            assert profiles_df is not None, 'profiles_df must be fetched!'
+            if profiles_df is None:
+                logger.error(f"[PROFILES] No DataFrame for {app_id}!")
+                return
+            logger.info(f"[PROFILES] Fetch complete: {len(profiles_df)} rows, columns: {profiles_df.columns.tolist()}")
             db_controller.insert_data(profiles_df, tmp_suffix)
             # Шаг 4. После успеха — удалить old и переименовать temp
             db_controller._db.drop_table(latest_table)
             db_controller._db.rename_table(tmp_table, latest_table)
+            logger.info(f"[PROFILES] Done: loaded and updated latest snapshot for app_id={app_id}, rows: {len(profiles_df)}")
             logger.info(f"Profiles for {app_id} successfully swapped to latest.")
         except Exception as e:
             logger.error(f"Failed to update profiles table for {app_id}: {e}")
