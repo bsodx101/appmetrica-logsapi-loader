@@ -58,10 +58,10 @@ class Scheduler(object):
         self._state_storage.save(self._state)
 
     def _get_or_create_app_id_state(self, source: str, app_id: str) -> AppIdState:
-        uniq_id = f"{app_id}:{source}"
-        app_id_states = [s for s in self._state.app_id_states if s.app_id == uniq_id]
+        app_id_state_id = f"{source}_{app_id}"
+        app_id_states = [s for s in self._state.app_id_states if s.app_id == app_id_state_id]
         if len(app_id_states) == 0:
-            app_id_state = AppIdState(uniq_id)
+            app_id_state = AppIdState(app_id_state_id)
             self._state.app_id_states.append(app_id_state)
         else:
             app_id_state = app_id_states[0]
@@ -170,23 +170,24 @@ class Scheduler(object):
         started_at = datetime.now()
         from settings import SAFE_LAG_HOURS
         for app_id in self._app_ids:
-            app_id_state = self._get_or_create_app_id_state(app_id)
-            hour_to = (started_at - timedelta(hours=SAFE_LAG_HOURS)).replace(minute=0, second=0, microsecond=0)
-            hour_from = hour_to - self._update_limit
+            for source in self._definition.date_required_sources:
+                app_id_state = self._get_or_create_app_id_state(source, app_id)
+                hour_to = (started_at - timedelta(hours=SAFE_LAG_HOURS)).replace(minute=0, second=0, microsecond=0)
+                hour_from = hour_to - self._update_limit
 
-            updates = self._archive_old_hours(app_id_state)
-            for update_request in updates:
-                yield update_request
-
-            for pd_hour in pd.date_range(hour_from, hour_to, freq='H'):
-                p_hour = pd_hour.to_pydatetime().replace(minute=0, second=0, microsecond=0)  # type: datetime
-                updates = self._update_hour(app_id_state, p_hour, started_at)
+                updates = self._archive_old_hours(app_id_state)
                 for update_request in updates:
                     yield update_request
 
-            updates = self._update_hour_ignored_fields(app_id_state.app_id)
-            for update_request in updates:
-                yield update_request
+                for pd_hour in pd.date_range(hour_from, hour_to, freq='H'):
+                    p_hour = pd_hour.to_pydatetime().replace(minute=0, second=0, microsecond=0)  # type: datetime
+                    updates = self._update_hour(app_id_state, p_hour, started_at)
+                    for update_request in updates:
+                        yield update_request
+
+                updates = self._update_hour_ignored_fields(app_id_state.app_id)
+                for update_request in updates:
+                    yield update_request
         # Добавить профили в tasks
         now = datetime.now()
         for app_id in self._app_ids:

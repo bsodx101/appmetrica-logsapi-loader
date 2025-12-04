@@ -239,8 +239,6 @@ sources = [
     _crashes_source,
     _errors_source,
     _sessions_starts_source
-    # больше ничего внутрь списка, только append ниже!
 ]
 
-# Тут любой append/добавление динамических
 sources.append(_profiles_source)
