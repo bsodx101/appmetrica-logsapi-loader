@@ -104,21 +104,19 @@ class DbController(object):
         return df.to_csv(index=False, sep='\t')
 
     def _create_table(self, table_name):
-        field_types = [
-            ("DeviceID", "String"),
-            ("EventName", "String"),
-            ("EventDateTime", "DateTime")
-        ]
-        # формируем SQL руками — лишние параметры не нужны!
+        # Получаем типы колонок для текущего source через DbTableDefinition
+        column_types = self._definition.column_types
+        columns_sql = ",\n    ".join([f"{col} {col_type}" for col, col_type in column_types.items()])
+        # partition_field и primary_keys должны быть заданы в DbTableDefinition
+        partition_field = getattr(self._definition, 'date_field', list(column_types.keys())[-1])
+        order_sql = ", ".join(self._definition.primary_keys if self._definition.primary_keys else column_types.keys())
         create_sql = f'''
             CREATE TABLE {self._db.db_name}.{table_name} (
-                DeviceID String,
-                EventName String,
-                EventDateTime DateTime
+                {columns_sql}
             )
             ENGINE = MergeTree()
-            PARTITION BY toYYYYMM(EventDateTime)
-            ORDER BY (EventDateTime, EventName, DeviceID)
+            PARTITION BY toYYYYMM({partition_field})
+            ORDER BY ({order_sql})
         '''
         self._db._query_clickhouse(create_sql)
 
@@ -148,8 +146,9 @@ class DbController(object):
         self._ensure_table_created(table_name)
 
     def insert_data(self, df: DataFrame, table_suffix: str):
-        required_columns = ['DeviceID', 'EventName', 'EventDateTime']
-        df = df[[col for col in required_columns if col in df.columns]]
+        # используем только export_fields, определённые для источника
+        required_columns = [col for col in self._definition.export_fields if col in df.columns]
+        df = df[required_columns]
         logger.info(f'BEFORE INSERT: DataFrame shape: {df.shape}')
         logger.info(f'BEFORE INSERT: Columns: {df.columns.tolist()}')
         if not df.empty:

@@ -134,7 +134,7 @@ class Scheduler(object):
         for source in sources:
             yield UpdateRequest(source, app_id, p_hour,
                                 UpdateRequest.LOAD_ONE_HOUR)
-        self._mark_hour_updated(app_id_state, p_hour)
+        # УДАЛЕНО: self._mark_hour_updated(app_id_state, p_hour)
 
         fresh = last_event_delta < self._fresh_limit
         if not fresh:
@@ -173,7 +173,8 @@ class Scheduler(object):
             for source in self._definition.date_required_sources:
                 app_id_state = self._get_or_create_app_id_state(source, app_id)
                 hour_to = (started_at - timedelta(hours=SAFE_LAG_HOURS)).replace(minute=0, second=0, microsecond=0)
-                hour_from = hour_to - self._update_limit
+                dt_from = hour_to - self._update_limit
+                hour_from = dt_from.replace(hour=0, minute=0, second=0, microsecond=0)
 
                 updates = self._archive_old_hours(app_id_state, app_id)
                 for update_request in updates:

@@ -81,14 +81,8 @@ class Updater(object):
                     loading_definition: LoadingDefinition):
         db_controller.recreate_table(table_suffix)
 
-        # Используем только нужные поля для API
-        custom_fields = [
-            "appmetrica_device_id",
-            "event_name",
-            "event_datetime"
-        ]
         df_it = self._loader.load(app_id, loading_definition.source_name,
-                                  custom_fields,  # только эти поля!
+                                  loading_definition.fields,
                                   since, until, LogsApiClient.DATE_DIMENSION_CREATE, parts_count)
         for df in df_it:
             # Маппинг имён колонок под ClickHouse
