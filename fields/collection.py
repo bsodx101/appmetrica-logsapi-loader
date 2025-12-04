@@ -22,7 +22,8 @@ class SchedulingDefinition(object):
         self.date_ignored_sources = []
         for source in sources:
             source_name = source.load_name
-            if source.date_ignored:
+            # profiles всегда только в ignored_sources!
+            if source.date_ignored or source_name == "profiles":
                 self.date_ignored_sources.append(source_name)
             else:
                 self.date_required_sources.append(source_name)
