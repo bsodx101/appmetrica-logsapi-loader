@@ -150,6 +150,7 @@ class Scheduler(object):
 
     def _update_profiles_if_needed(self, app_id: str, now: datetime):
         profiles_app_id_state = self._get_or_create_app_id_state("profiles", app_id)
+        # Гарантируем наличие атрибута last_profile_update всегда!
         if not hasattr(profiles_app_id_state, 'last_profile_update'):
             profiles_app_id_state.last_profile_update = None
         from settings import PROFILE_UPDATE_INTERVAL
