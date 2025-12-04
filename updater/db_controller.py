@@ -99,7 +99,7 @@ class DbController(object):
     @staticmethod
     def _export_data_to_tsv(df: DataFrame) -> str:
         logger.debug("Exporting data to csv")
-        return df.to_csv(index=False, sep='\t')
+        return df.to_csv(index=False, sep='\t', encoding='utf-8')
 
     def _create_table(self, table_name):
         # Используем имена db_name и db_type для export_fields_obj
