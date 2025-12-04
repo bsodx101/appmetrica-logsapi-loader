@@ -173,8 +173,7 @@ class Scheduler(object):
             )
             profiles_app_id_state.last_profile_update = now
 
-    def update_requests(self) \
-            -> Generator[UpdateRequest, None, None]:
+    def update_requests(self) -> Generator[UpdateRequest, None, None]:
         self._load_state()
         self._wait_if_needed()
         started_at = datetime.now()
@@ -199,14 +198,23 @@ class Scheduler(object):
                 updates = self._update_hour_ignored_fields(app_id)
                 for update_request in updates:
                     yield update_request
-        # Добавить профили в tasks (Только одна таска, без почасовых!)
+        # Почасовые таски для событий/сессий как обычно
+
+        # Явная генерация таски только для профиля
         now = datetime.now()
+        from settings import PROFILE_UPDATE_INTERVAL
         for app_id in self._app_ids:
-            updates = self._update_profiles_if_needed(app_id, now)
-            for update_request in updates:
-                # ГАРАНТИРУЕМ только type==load_profiles и hour is None
-                if (update_request.source == "profiles"
-                      and update_request.update_type == "load_profiles"
-                      and update_request.hour is None):
-                    yield update_request
+            app_id_state = self._get_or_create_app_id_state("profiles", app_id)
+            if not hasattr(app_id_state, 'last_profile_update'):
+                app_id_state.last_profile_update = None
+            if app_id_state.last_profile_update is None or \
+               (now - app_id_state.last_profile_update).total_seconds() > PROFILE_UPDATE_INTERVAL * 3600:
+                logger.info(f"[DEBUG profiles] Scheduling profile task for app_id={app_id}, last_update={app_id_state.last_profile_update}")
+                yield UpdateRequest(
+                    source="profiles",
+                    app_id=app_id,
+                    p_hour=None,
+                    update_type="load_profiles"
+                )
+                # ВНИМАНИЕ: Обновлять last_profile_update только после успешной загрузки!
         self._finish_updates()

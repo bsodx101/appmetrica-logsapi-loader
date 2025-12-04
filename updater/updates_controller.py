@@ -178,7 +178,7 @@ class UpdatesController(object):
                         f.write(chunk)
                 print(f"[PROFILES] Saved snapshot to {filename}. Chunk-loading with pandas.")
                 try:
-                    reader = pd.read_csv(filename, chunksize=chunksize)
+                    reader = pd.read_csv(filename, chunksize=chunksize, encoding="utf-8-sig")
                     for i, df in enumerate(reader, 1):
                         df = df.rename(columns={
                             "appmetrica_device_id": "DeviceID",
