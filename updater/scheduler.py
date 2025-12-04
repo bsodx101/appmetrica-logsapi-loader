@@ -53,6 +53,11 @@ class Scheduler(object):
 
     def _load_state(self):
         self._state = self._state_storage.load()
+        # После загрузки state обязательно инициализируем last_profile_update в профилях!
+        for app_id_state in getattr(self._state, 'app_id_states', []):
+            if app_id_state.app_id.startswith('profiles_'):
+                if not hasattr(app_id_state, 'last_profile_update'):
+                    app_id_state.last_profile_update = None
 
     def _save_state(self):
         self._state_storage.save(self._state)
