@@ -42,3 +42,6 @@ CH_HOST = environ.get('CH_HOST', 'http://localhost:8123')
 CH_USER = environ.get('CH_USER')
 CH_PASSWORD = environ.get('CH_PASSWORD')
 CH_DATABASE = environ.get('CH_DATABASE', 'mobile')
+
+PROFILE_FIELDS = [s.strip() for s in environ.get('PROFILE_FIELDS', '').split(',') if s.strip()]
+PROFILE_UPDATE_INTERVAL = int(environ.get('PROFILE_UPDATE_INTERVAL', '24'))
