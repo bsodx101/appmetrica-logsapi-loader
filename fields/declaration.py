@@ -192,42 +192,45 @@ _errors_source = Source("errors", "errors", "error_date", "appmetrica_device_id"
                         _error_key, False, _error_fields)
 
 
-_sessions_start_fields = _system_defined_fields + _sdk_device_fields + _app_fields + [
-    required("session_start_timestamp", db_uint64("SessionStartTimestamp")),
-    optional("session_start_receive_timestamp", db_uint64("ReceiveTimestamp")),
-
-    required("session_start_date", db_date("SessionStartDate"), timestamp_to_date("session_start_timestamp")),
-    optional("session_start_datetime", db_datetime("SessionStartDateTime"), timestamp_to_datetime("session_start_timestamp")),
-    optional("session_start_receive_date", db_date("ReceiveDate"), timestamp_to_date("session_start_receive_timestamp")),
-    optional("session_start_receive_datetime", db_datetime("ReceiveDateTime"), timestamp_to_datetime("session_start_receive_timestamp")),
-]  # type: List[Field]
-_sessions_start_key = [
-    "device_id_hash",
+_sessions_starts_fields = [
+    required("appmetrica_device_id", db_string("DeviceID")),
+    required("session_start_datetime", db_datetime("SessionStartDateTime")),
 ]
-_sessions_starts_source = Source("sessions_starts", "sessions_starts", "session_start_date", "appmetrica_device_id",
-                                 _sessions_start_key, False, _sessions_start_fields)
+_sessions_starts_source = Source(
+    "sessions_starts",
+    "sessions_starts",
+    "session_start_date",          # если нет нужного date, можно просто "1970-01-01"
+    "appmetrica_device_id",
+    ["appmetrica_device_id"],
+    False,
+    _sessions_starts_fields
+)
 
 
 import settings
 
-_profiles_fields = [
-    required("appmetrica_device_id", db_string("DeviceID")),
-]
+_profiles_fields = []
 for fname in settings.PROFILE_FIELDS:
     norm_name = fname.strip()
-    if norm_name and norm_name != "appmetrica_device_id":
-        db_col = norm_name.replace(" ", "")
+    # Для "appmetrica_device_id" делаем DeviceID, остальные оставляем как есть или делаем нормализацию
+    if norm_name == "appmetrica_device_id":
+        _profiles_fields.append(required(norm_name, db_string("DeviceID")))
+    else:
+        # ClickHouse не разрешает пробелы — превращаем пробелы в подчёркивания
+        db_col = norm_name.replace(" ", "_")
         _profiles_fields.append(optional(norm_name, db_string(db_col)))
 
 _profiles_source = Source(
     "profiles",
     "profiles",
-    "profile_date",
+    "profile_date",   # можно выбрать любой date_field, если захочешь snapshot
     "appmetrica_device_id",
     ["appmetrica_device_id"],
     False,
     _profiles_fields
 )
+
+sources.append(_profiles_source)
 
 sources = [
     _clicks_source,
