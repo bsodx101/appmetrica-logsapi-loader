@@ -107,9 +107,14 @@ class DbController(object):
         # Получаем типы колонок для текущего source через DbTableDefinition
         column_types = self._definition.column_types
         columns_sql = ",\n    ".join([f"{col} {col_type}" for col, col_type in column_types.items()])
-        # partition_field и primary_keys должны быть заданы в DbTableDefinition
-        partition_field = getattr(self._definition, 'date_field', list(column_types.keys())[-1])
-        order_sql = ", ".join(self._definition.primary_keys if self._definition.primary_keys else column_types.keys())
+        # partition_field: гарантируем что он __DateTime__ и реально есть в колонках
+        partition_field = getattr(
+            self._definition, 'date_field',
+            [col for col, typ in column_types.items() if typ.startswith('DateTime') or typ.startswith('Date')][0]
+        )
+        # order_by только по реально существующим в схеме полям
+        order_fields = self._definition.primary_keys if self._definition.primary_keys else [partition_field]
+        order_sql = ", ".join([col for col in order_fields if col in column_types.keys()])
         create_sql = f'''
             CREATE TABLE {self._db.db_name}.{table_name} (
                 {columns_sql}
