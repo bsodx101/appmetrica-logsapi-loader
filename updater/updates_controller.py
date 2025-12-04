@@ -147,7 +147,7 @@ class UpdatesController(object):
             except Exception as ee:
                 logger.warning(f"Also failed to drop temp table {tmp_table}: {ee}")
 
-    def get_profiles_dataframe(self, app_id):
+    def get_profiles_dataframe(self, app_id, max_attempts=240, polling_interval=20):
         import pandas as pd
         import requests
         import io
@@ -163,21 +163,34 @@ class UpdatesController(object):
         headers = {
             "Authorization": f"OAuth {TOKEN}"
         }
-        resp = requests.get(url, params=params, headers=headers)
-        print("API STATUS:", resp.status_code)
-        print("API BODY (truncated):", resp.text[:300])
-        resp.raise_for_status()
-        try:
-            df = pd.read_json(io.StringIO(resp.text))
-        except Exception as e:
-            print(f"Failed to parse JSON: {e}")
-            return None
-        df = df.rename(columns={
-            "appmetrica_device_id": "DeviceID",
-            "№ карты лояльности": "LoyaltyCardNumber",
-            "Номер телефона": "PhoneNumber"
-        })
-        return df
+
+        for attempt in range(max_attempts):
+            resp = requests.get(url, params=params, headers=headers)
+            print(f"[PROFILES] Attempt {attempt+1}: API STATUS = {resp.status_code}")
+            if resp.status_code == 200:
+                print("[PROFILES] Got status 200, parsing DataFrame...")
+                try:
+                    df = pd.read_json(io.StringIO(resp.text))
+                except Exception as e:
+                    print(f"Failed to parse JSON: {e}")
+                    return None
+                df = df.rename(columns={
+                    "appmetrica_device_id": "DeviceID",
+                    "№ карты лояльности": "LoyaltyCardNumber",
+                    "Номер телефона": "PhoneNumber"
+                })
+                return df
+            elif resp.status_code == 202:
+                print("[PROFILES] Data export in queue or preparing, waiting before next attempt...")
+                time.sleep(polling_interval)
+                continue
+            else:
+                print("[PROFILES] Unhandled status code:", resp.status_code)
+                print(resp.text[:300])
+                return None
+
+        print("[PROFILES] Gave up polling profiles (timeout!)")
+        return None
 
     def _step(self):
         update_requests = self._scheduler.update_requests()
