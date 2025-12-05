@@ -80,6 +80,9 @@ class SourcesCollection(object):
         self._sources = dict()
         for source in sources:
             source_name = source.load_name
+            # унифицирую к строкам
+            if isinstance(requested_sources, str):
+                requested_sources = json.loads(requested_sources)
             if len(requested_sources) == 0 or source_name in requested_sources:
                 self._source_names.append(source_name)
                 self._sources[source_name] = source
